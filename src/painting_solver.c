@@ -13,8 +13,8 @@ typedef enum {
 typedef enum {
 	CLEAR = 0,
 	MUST_BE_PAINTED = 1,
-        PAINTED_RIGHT = 2,
-        PAINTED_WRONG = 3
+  PAINTED_RIGHT = 2,
+  PAINTED_WRONG = 3
 } case_t;
 
 static inline PAINT(case_t value) {
@@ -105,13 +105,13 @@ void execute_cmd(command_t cmd, unsigned char* array, int row_num, int col_num, 
     }
     case PAINT_SQUARE:
     {
-	int row = cmd.coords[0];
-        int col = cmd.coords[1];
-        int   s = cmd.coords[2];
-        int i, j;
-        for (i = row - s; i <= row + s; ++i) 
-	    for (j = col - s; j <= col + s; ++j)
-		array[i * col_num + j] = extended ? PAINT(array[i * col_num + j]) : 1;
+	    int row = cmd.coords[0];
+      int col = cmd.coords[1];
+      int   s = cmd.coords[2];
+      int i, j;
+      for (i = row - s; i <= row + s; ++i) 
+	      for (j = col - s; j <= col + s; ++j)
+		      array[i * col_num + j] = extended ? PAINT(array[i * col_num + j]) : 1;
     }
     case ERASE_CELL:
     {
@@ -178,24 +178,42 @@ int main(int argc, char** argv) {
     }
     printf("%d rows read\n", i);
     // cleaning input array
-    for (i = 0; i < row_num * col_num; ++i) input_array[i] = input_array[i] == '#' ? 1 : 0;
+    for (i = 0; i < row_num * col_num; ++i) input_array[i] = input_array[i] == '#' ? MUST_BE_PAINTED : CLEAR;
 
     // command list
     command_list_t* cmd_list_p = new_list(); 
     for (i = 0; i < row_num; i++) {
       int j;
       for (j = 0; j < col_num; j++) {
-        for (;j < col_num && !input_array[i*col_num+j]; ++j);
+        for (;j < col_num && input_array[i*col_num+j] != MUST_BE_PAINTED; ++j);
         if (j >= col_num) break;
         int begin_row = j;
-        for (;j < col_num && input_array[i*col_num+j]; ++j);
+        for (;j < col_num && input_array[i*col_num+j] == MUST_BE_PAINTED; ++j);
         int end_row = j - 1;
+        int row_length = end_row - begin_row + 1;
         command_t cmd;
-        cmd.type = PAINT_LINE;
-        cmd.coords[0] = i;
-        cmd.coords[1] = begin_row;
-        cmd.coords[2] = i;
-        cmd.coords[3] = end_row;
+        int k;
+        for (k = i; k < row_num && input_array[k * col_num + begin_row] == MUST_BE_PAINTED; ++k);
+        int end_col = k - 1;
+        int col_length = end_col - i + 1;
+        if (col_length > row_length) {
+          cmd.type = PAINT_LINE;
+          cmd.coords[0] = i;
+          cmd.coords[1] = begin_row;
+          cmd.coords[2] = end_col;
+          cmd.coords[3] = begin_row;
+          j = begin_row;
+        } else {
+          cmd.type = PAINT_LINE;
+          cmd.coords[0] = i;
+          cmd.coords[1] = begin_row;
+          cmd.coords[2] = i;
+          cmd.coords[3] = end_row;
+        }
+
+
+
+        execute_cmd(cmd, input_array, row_num, col_num, 1 /* extended */);
 
         add_to_list(cmd_list_p, cmd);
       }
