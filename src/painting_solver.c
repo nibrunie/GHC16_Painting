@@ -9,6 +9,37 @@ typedef enum {
   ERASE_CELL
 } command_type_t;
 
+
+typedef enum {
+	CLEAR = 0,
+	MUST_BE_PAINTED = 1,
+        PAINTED_RIGHT = 2,
+        PAINTED_WRONG = 3
+} case_t;
+
+static inline PAINT(case_t value) {
+	switch(value) {
+		case CLEAR:
+			return PAINTED_WRONG;
+		case MUST_BE_PAINTED:
+			return PAINTED_RIGHT;
+		default:
+			return value;
+	};
+} 
+
+static inline ERASE(case_t value) {
+	switch(value) {
+		case CLEAR:
+		case MUST_BE_PAINTED:
+			return value;
+		case PAINTED_RIGHT:
+			return MUST_BE_PAINTED;
+		case PAINTED_WRONG:
+			return CLEAR;
+	};
+}
+
 typedef struct {
   command_type_t type;
   int coords[4];
@@ -50,23 +81,55 @@ void add_to_list(command_list_t* list, command_t cmd) {
   list->length += 1;
 }
 
+#define min(x, y) ((x < y) ? x : y)
+#define max(x, y) ((x < y) ? y : x)
+
+void execute_cmd(command_t cmd, unsigned char* array, int row_num, int col_num, int extended) {
+  switch (cmd.type) {
+    case PAINT_LINE: 
+    {
+      if (cmd.coords[0] == cmd.coords[2]) {
+	  int row = cmd.coords[0];
+	  int begin = min(cmd.coords[1], cmd.coords[3]);
+	  int end   = max(cmd.coords[1], cmd.coords[3]);
+	  int i;
+	  for (i = begin; i <= end; ++i) array[row * col_num + i] = extended ? PAINT(array[row * col_num + i]) : 1;
+      } else if (cmd.coords[1] == cmd.coords[3]) {
+          int col = cmd.coords[1];
+	  int begin = min(cmd.coords[0], cmd.coords[2]);
+	  int end = max(cmd.coords[0], cmd.coords[2]);
+	  int i;
+	  for (i = begin; i <= end; ++i) array[i * col_num + col] = extended ? PAINT(array[i * col_num + col]) : 1;
+      };
+      break;
+    }
+    case PAINT_SQUARE:
+    {
+	int row = cmd.coords[0];
+        int col = cmd.coords[1];
+        int   s = cmd.coords[2];
+        int i, j;
+        for (i = row - s; i <= row + s; ++i) 
+	    for (j = col - s; j <= col + s; ++j)
+		array[i * col_num + j] = extended ? PAINT(array[i * col_num + j]) : 1;
+    }
+    case ERASE_CELL:
+    {
+	int row = cmd.coords[0];
+        int col = cmd.coords[1];
+        array[row * col_num + col] = extended ? ERASE(array[row * col_num + col]) : 0;
+    }
+    default:
+      assert(0 && "unsupported command type in execute_cmd_list");
+      break;
+  };
+}
+
 void execute_cmd_list(command_list_t* cmd_list, unsigned char* array, int row_num, int col_num) {
   command_cell_t* current;
   for (current = cmd_list->first; current != NULL; current = current->next) {
     command_t cmd = current->cmd;
-    switch (cmd.type) {
-      case PAINT_LINE: 
-      {
-        int row = cmd.coords[0];
-        int begin = cmd.coords[1], end = cmd.coords[3];
-        int i;
-        for (i = begin; i <= end; ++i) array[row * col_num + i] = 1;
-        break;
-      }
-      default:
-        assert(0 && "unsupported command type in execute_cmd_list");
-        break;
-    };
+    execute_cmd(cmd, array, row_num, col_num, 0 /* not extended */);
   }
 }
 
