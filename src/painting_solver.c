@@ -112,12 +112,14 @@ void execute_cmd(command_t cmd, unsigned char* array, int row_num, int col_num, 
       for (i = row - s; i <= row + s; ++i) 
 	      for (j = col - s; j <= col + s; ++j)
 		      array[i * col_num + j] = extended ? PAINT(array[i * col_num + j]) : 1;
+      break;
     }
     case ERASE_CELL:
     {
-	int row = cmd.coords[0];
-        int col = cmd.coords[1];
-        array[row * col_num + col] = extended ? ERASE(array[row * col_num + col]) : 0;
+	    int row = cmd.coords[0];
+      int col = cmd.coords[1];
+      array[row * col_num + col] = extended ? ERASE(array[row * col_num + col]) : 0;
+      break;
     }
     default:
       assert(0 && "unsupported command type in execute_cmd_list");
@@ -143,6 +145,16 @@ void print_cmd_list(command_list_t* cmd_list) {
         printf("PAINT_LINE %d %d %d %d\n", cmd.coords[0], cmd.coords[1], cmd.coords[2], cmd.coords[3]);
         break;
       }
+      case PAINT_SQUARE: 
+      {
+        printf("PAINT_SQUARE %d %d %d\n", cmd.coords[0], cmd.coords[1], cmd.coords[2]);
+        break;
+      }
+      case ERASE_CELL: 
+      {
+        printf("ERASE_CELL %d %d\n", cmd.coords[0], cmd.coords[1]);
+        break;
+      }
       default:
         assert(0 && "unsupported command type in execute_cmd_list");
         break;
@@ -158,6 +170,17 @@ void display_array(unsigned char* array, int row_num, int col_num) {
   }
 }
 
+int is_square_valid(unsigned char* array, int row_num, int col_num, int row, int col, int s) {
+  int i, j;
+  int count = 0;
+  int objective_count = (2*s+1) * (2*s+1);
+  for (i = row; i < row + 2 * s + 1; ++i) 
+    for (j = col; j < col + 2 * s + 1; ++j) {
+      count += array[i * col_num + j] == MUST_BE_PAINTED ? 1 : 0;
+  }
+  return (count == objective_count);
+}
+
 
 int main(int argc, char** argv) {
   const char*  usage = "Usage: ./painting_solver <input_file>\n";
@@ -168,7 +191,7 @@ int main(int argc, char** argv) {
     FILE* input_file = fopen(argv[1], "r");
     int read_status = fscanf(input_file, "%d %d\n", &row_num, &col_num);
     assert((read_status == 2) && "failure while reading <row> <num> line");
-    printf("file contains %d rows and %d columns\n", row_num, col_num);
+    // printf("file contains %d rows and %d columns\n", row_num, col_num);
 
     char* input_array = malloc(row_num * col_num * sizeof(unsigned char) + 1);
     int i;
@@ -176,12 +199,40 @@ int main(int argc, char** argv) {
       int read_status = fscanf(input_file, "%s\n", input_array + i * col_num);
       assert((read_status == 1) && "failure while reading row line");
     }
-    printf("%d rows read\n", i);
+    // printf("%d rows read\n", i);
     // cleaning input array
     for (i = 0; i < row_num * col_num; ++i) input_array[i] = input_array[i] == '#' ? MUST_BE_PAINTED : CLEAR;
 
     // command list
     command_list_t* cmd_list_p = new_list(); 
+    // square search 
+    for (i = 0; i < row_num; i++) {
+      int j;
+      for (j = 0; j < col_num; j++) {
+        int s = 1;
+        int valid_square = 0;
+        int max_s = -1;
+        for (s = 1; i + 2*s < row_num && j + 2*s < col_num; ++s) {
+          valid_square = is_square_valid(input_array, row_num, col_num, i, j, s);
+          if (!valid_square) break;
+          max_s = s;
+        };
+        if (max_s >= 0) {
+          command_t cmd;
+          cmd.type = PAINT_SQUARE;
+          cmd.coords[0] = i + max_s;
+          cmd.coords[1] = j + max_s;
+          cmd.coords[2] = max_s;
+          cmd.coords[3] = -1;
+          execute_cmd(cmd, input_array, row_num, col_num, 1 /* extended */);
+
+          add_to_list(cmd_list_p, cmd);
+
+        }
+      }
+    }
+
+    //
     for (i = 0; i < row_num; i++) {
       int j;
       for (j = 0; j < col_num; j++) {
@@ -220,11 +271,11 @@ int main(int argc, char** argv) {
     }
     // checking
     unsigned char* reconstructed_array = calloc(row_num * col_num, sizeof(unsigned char));
-    print_cmd_list(cmd_list_p);
-    execute_cmd_list(cmd_list_p, reconstructed_array, row_num, col_num);
-    display_array(reconstructed_array, row_num, col_num);
+    //execute_cmd_list(cmd_list_p, reconstructed_array, row_num, col_num);
+    //display_array(reconstructed_array, row_num, col_num);
 
-    printf("solved in %d commands\n", cmd_list_p->length);
+    printf("%d\n", cmd_list_p->length);
+    print_cmd_list(cmd_list_p);
 
     fclose(input_file);
   }
